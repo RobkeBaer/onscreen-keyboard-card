@@ -179,35 +179,15 @@ class OnScreenKeyboardCard extends HTMLElement {
   }
 
   handleClick(e) {
-    // Fallback: detect clicks on input fields even if focusin doesn't propagate
-    if (this.visible) return;
-    const path = e.composedPath();
-    for (const el of path) {
-      if (el === this || (this.shadowRoot && this.shadowRoot.contains(el))) return;
-      if (el instanceof HTMLInputElement && ['text', 'search', 'email', 'url', 'password', 'number', 'time', ''].includes(el.type)) {
-        this.activeInput = el;
-        this.showKeyboard();
-        return;
-      }
-      if (el instanceof HTMLTextAreaElement) {
-        this.activeInput = el;
-        this.showKeyboard();
-        return;
-      }
-    }
-    // Check shadow roots of HA custom elements
-    for (const el of path) {
-      if (el && el.shadowRoot) {
-        const input = el.shadowRoot.querySelector('input[type="text"], input[type="search"], input[type="time"], input[type="number"], input:not([type]), textarea');
-        if (input) {
-          this.activeInput = input;
-          this.showKeyboard();
-          return;
-        }
-      }
+    const input = this._findInputInPath(e);
+    if (input) {
+      if (this.visible && this.activeInput === input) return;
+      this.activeInput = input;
+      this._rememberSelection();
+      this.showKeyboard();
     }
   }
-
+  
   _findInputInPath(e) {
     // composedPath() gives us the full event path through all shadow DOMs
     const path = e.composedPath();
@@ -223,7 +203,14 @@ class OnScreenKeyboardCard extends HTMLElement {
     for (const el of path) {
       if (el && el.shadowRoot) {
         const input = el.shadowRoot.querySelector('input[type="text"], input[type="search"], input[type="email"], input[type="url"], input[type="password"], input:not([type]), textarea');
-        if (input) return input;
+        if (input) {
+          // If it's a custom HA element wrapping a native input, dive into its shadow root too
+          if (input.shadowRoot) {
+            const innerInput = input.shadowRoot.querySelector('input, textarea');
+            if (innerInput) return innerInput;
+          }
+          return input;
+        }
       }
     }
     return null;
